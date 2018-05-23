@@ -1,0 +1,10 @@
+#!/bin/bash
+totTime=$(/usr/bin/mpc status | awk '/^\[playing\]/ { sub(/.+\//,"",$3); split($3,a,/:/); print a[1]*60+a[2]; }');
+
+if [ -z "$totTime" ]; then
+	totTime=$(/usr/bin/mpc status | awk '/^\[paused\]/ { sub(/.+\//,"",$3); split($3,a,/:/); print a[1]*60+a[2]; }');
+	echo $totTime
+else
+    echo $totTime;
+fi
+

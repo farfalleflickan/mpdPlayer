@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Dario Rostirolla</title>
+        <meta charset="UTF-8">
+        <meta name="description" content="Dario Rostirolla">
+        <meta name="keywords" content="HTML, CSS">
+        <meta name="author" content="Dario Rostirolla">
+        <link rel="icon" type="image/png" href="https://dariorostirolla.se/img/favicon.png"/>
+        <link rel="stylesheet" type="text/css" href="music.css">
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    </head>
+    <body onload="resetEverything()" id="mainBody">
+        <div id="header">
+            <h1 id="sTitle"></h1>
+        </div>
+        <div id="main">
+            <div id="buttons">
+                <button class="button" onclick="refreshData()">Refresh UI</button>                
+                <button class="button" onclick="buttonToggler(this, 'random')">Shuffle</button>
+                <button class="button" onclick="nextLast('last')">Last</button>
+                <button class="button" id="playButton" onclick="playPause()">Play</button>
+                <button class="button" onclick="nextLast('next')">Next</button>
+                <button class="button" id="repeatButton" onclick="buttonToggler(this, 'repeat')">Repeat</button>
+                <button class="button" id="repeatButtonAll" onclick="buttonToggler(this, 'repeatplaylist')">Repeat all</button>
+				<select id="plistSelect" onchange="changePlaylist()">
+                    <option value="1">Default playlist</option>
+                    <option value="2">Playlist 1</option>
+                </select>
+		<input id="songsJump" type="text" placeholder=" " autocomplete="off">
+		<button class="button" onclick="songsJump()">Jump songs</button>
+		<button class="button" onclick="resetStream()">Reset stream</button>
+        </div>
+        <div id="barDiv">
+                <progress id="pBar"></progress>
+            </div>
+            <div id="volDiv">
+                <i class="material-icons">volume_down</i>
+                <input type="range" id="volSlider" min="0" max="100" onchange="setVolume()">
+                <i class="material-icons">volume_up</i>
+            </div>
+            <iframe id="iframe_id" src="https://dariorostirolla.se/list.cgi" frameBorder="0">Browser not compatible.</iframe>
+        </div>
+        <div id="footer">
+            <audio style="display: hidden" id="MPDplayer" preload="none">
+                <source src="mpd" id="MPDSource" type="audio/mpeg">
+            </audio>
+        </div>
+        <script>
+        var titleTimer, pBarTimer, rStatus = 0, rStatusAll=0, firstPlay=true;
+	
+	    function songsJump(){
+			var songsJump = document.getElementById("songsJump").value;
+			cgiScript("next", songsJump.toString());
+			setTimeout(function() {
+				cgiScript("play", "");
+           		cgiScript("progressbar", "");
+           		cgiScript('status', '');
+			
+				if (firstPlay==true){
+					document.getElementById("MPDSource").src = "mpd/" + new Date().getTime()+".mp3";
+					document.getElementById("MPDplayer").load();
+				}
+				firstPlay=false;					
+				
+				document.getElementById("iframe_id").contentWindow.location.reload();
+				document.getElementById("MPDplayer").play();
+				document.getElementById("playButton").textContent = "Pause";
+				document.getElementById("playButton").style = "background-color: #808080";
+				refreshData();
+				document.getElementById("songsJump").value = "";
+            }, 2500);
+	    }
+
+		function cgiScript(name, args) {
+			var cgiRequest = new XMLHttpRequest();
+			if ( args !== "" && name == "next"){
+				tempArgs = args;
+				args="?"+tempArgs;
+				cgiRequest.open("GET", "https://dariorostirolla.se/" + name + ".cgi" + args, true);
+			} else {
+				cgiRequest.open("GET", "https://dariorostirolla.se/" + name + ".cgi", true);
+			}
+			cgiRequest.responseType = 'text';
+			cgiRequest.onload = function () {
+				if (cgiRequest.readyState === cgiRequest.DONE) {
+					if (cgiRequest.status === 200) {
+						if (name === "progressbar") {
+							var res = cgiRequest.responseText.replace(/ /g, '').split("<br>");
+							clearInterval(pBarTimer);
+							pBarHandler(res[0], res[1]);
+						} else if (name === "status") {
+							clearInterval(titleTimer);
+							var res = cgiRequest.responseText.split("<br>");
+							var tempTime = parseInt(res[0]) * 1000;
+							if (tempTime < 60000) {
+								tempTime = 60000;
+							}
+							titleHandler(tempTime, res[1]);
+							document.getElementById('iframe_id').contentWindow.location.reload();
+						}
+					}
+				}
+			};
+			cgiRequest.send();
+		}
+
+		function playPause() {
+			if (document.getElementById("MPDplayer").paused) {
+				cgiScript("play", "");
+				document.getElementById("MPDplayer").play();
+				document.getElementById("playButton").textContent = "Pause";
+				document.getElementById("playButton").style = "background-color: #808080";
+				cgiScript("progressbar", "");
+				cgiScript('status', '');
+			} else {
+				cgiScript("pause", "");
+				document.getElementById("MPDplayer").pause();
+				document.getElementById("playButton").textContent = "Play";
+				document.getElementById("playButton").style = "background-color: none";
+				clearInterval(pBarTimer);
+				clearInterval(titleTimer);
+			}
+			if (firstPlay==true){
+				document.getElementById("MPDSource").src = "mpd/" + new Date().getTime()+".mp3";
+				document.getElementById("MPDplayer").load();
+			}
+			firstPlay=false;
+		}
+
+		function titleHandler(time, name) {
+			document.getElementById("sTitle").innerHTML = name;
+			if (time > 0){
+				titleTimer = setInterval(function () {
+					cgiScript('status', '');
+				}, time);
+			}
+		}
+
+		function pBarHandler(elapsTime, totTime) {
+			document.getElementById("pBar").value = elapsTime;
+			document.getElementById("pBar").max = totTime;
+			pBarTimer = setInterval(function () {
+				if (!document.getElementById("MPDplayer").paused) {
+					document.getElementById("pBar").value += 1;
+					if ((document.getElementById("pBar").max - document.getElementById("pBar").value) <= 1) {
+						cgiScript("progressbar", "");
+						cgiScript('status', '');
+					}
+				} else {
+					clearInterval(pBarTimer);
+				}
+			}, 1000);
+		}
+
+		function buttonToggler(element, name) {
+			if (name === 'repeat'){
+				rStatus++;
+				if (rStatus % 2 !== 0) {
+					element.style = "background-color: #808080";
+					document.getElementById("repeatButtonAll").style="background-color: none";
+					rStatusAll=0;
+					name="repeaton";
+				} else {
+					element.style = "background-color: none";
+					name="repeatoff";
+				}
+			} else if (name === 'repeatplaylist' ) {
+				rStatusAll++;
+                if (rStatusAll % 2 !== 0) {
+                    element.style = "background-color: #808080";
+					rStatus=0;
+					document.getElementById("repeatButton").style="background-color: none";
+					name="repeatplayliston";
+				} else {
+                    element.style = "background-color: none";
+					name="repeatplaylistoff";
+                }
+			}
+			cgiScript(name, "");
+			cgiScript('status', '');
+		}
+
+		function nextLast(name) {
+			document.getElementById("MPDplayer").pause();
+			document.getElementById("MPDplayer").currentTime = 0;
+			document.getElementById("MPDSource").src = "mpd/" + new Date().getTime()+".mp3";
+			document.getElementById("MPDplayer").load();
+			cgiScript(name, "");
+			refreshData();
+			cgiScript("play", "");
+			document.getElementById("MPDplayer").play();
+			document.getElementById("playButton").textContent = "Pause";
+			document.getElementById("playButton").style = "background-color: #808080";
+			cgiScript("progressbar", "");
+			cgiScript("status", "");
+		}
+
+		function setVolume() {
+			document.getElementById("MPDplayer").volume = document.getElementById("volSlider").value / 100;
+		}
+
+		function resetEverything() {
+			cgiScript("reset", "");
+			cgiScript('status', '');
+			document.getElementById("MPDplayer").volume = 0.5;
+			document.getElementById("MPDSource").src = "mpd/" + new Date().getTime()+".mp3";
+			document.getElementById("MPDplayer").currentTime = 0;
+			document.getElementById("MPDplayer").load();
+		}
+
+		function refreshData() {
+			clearInterval(pBarTimer);
+			clearInterval(titleTimer);
+			cgiScript("progressbar", "");
+			cgiScript("status", "");
+		}
+		
+		function resetStream(){
+			document.getElementById("MPDSource").src = "mpd/" + new Date().getTime()+".mp3";
+            document.getElementById("MPDplayer").load();
+			cgiScript("play", "");
+            document.getElementById("MPDplayer").play();
+            document.getElementById("playButton").textContent = "Pause";
+            document.getElementById("playButton").style = "background-color: #808080";
+            cgiScript("progressbar", "");
+            cgiScript('status');
+		}
+
+		function changePlaylist() {
+                var e = document.getElementById("plistSelect");
+                var tempValue = parseInt(e.options[e.selectedIndex].value);
+                if (tempValue === 1) {
+                    resetEverything();
+                } else {
+                    tempValue--;
+                    cgiScript("playlist"+tempValue);
+                    refreshData();
+                }
+            }
+        </script>
+    </body>
+</html>

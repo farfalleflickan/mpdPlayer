@@ -1,0 +1,8 @@
+#!/bin/bash
+elapsTime=$(/usr/bin/mpc status | awk '/^\[playing\]/ { sub(/\/.+/,"",$3); split($3,a,/:/); print a[1]*60+a[2]; }'; );
+
+if [ -z "$elapsTime" ]; then
+	echo 0;
+else
+	echo $elapsTime;
+fi
